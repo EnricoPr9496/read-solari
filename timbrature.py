@@ -7,7 +7,7 @@ import os
 from datetime import datetime, timedelta
 import calendar
 
-# --- Dati Presi in Sicurezza da GitHub ---
+# --- Dati Presi in Sicurezza ---
 USERNAME = os.environ.get("SOLARI_USER")
 PASSWORD = os.environ.get("SOLARI_PASS")
 ID_DIPENDENTE = os.environ.get("SOLARI_ID", "136") 
@@ -64,7 +64,6 @@ def genera_dashboard(csrf_token):
     
     response = session.post(url, headers=headers, data=json.dumps(payload))
     
-    # Orario fuso italiano (+1/+2)
     ora_aggiornamento = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y alle %H:%M")
     
     html = f"""
@@ -81,14 +80,16 @@ def genera_dashboard(csrf_token):
             .update {{ text-align: center; font-size: 0.8em; color: #7f8c8d; margin-bottom: 20px; }}
             ul {{ list-style-type: none; padding: 0; }}
             li {{ padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }}
-            .oggi {{ background-color: #e8f8f5; border-left: 4px solid #1abc9c; font-weight: bold; }}
-            .timbrature {{ color: #2980b9; font-weight: bold; }}
+            .oggi {{ background-color: #e8f8f5; border-left: 4px solid #1abc9c; }}
+            .timbrature {{ color: #2980b9; font-weight: bold; text-align: right; }}
+            .previsione {{ font-size: 0.85em; color: #e67e22; font-weight: bold; margin-top: 5px; display: block; }}
+            .completato {{ color: #27ae60; }}
         </style>
     </head>
     <body>
         <div class="container">
             <h2>⏱ I Miei Orari (Settimana)</h2>
-            <div class="update">Ultimo aggiornamento: {ora_aggiornamento}</div>
+            <div class="update">Ultimo controllo automatico: {ora_aggiornamento}</div>
             <ul>
     """
 
@@ -104,22 +105,65 @@ def genera_dashboard(csrf_token):
                 data_formattata = data_obj.strftime("%d/%m/%Y")
                 is_oggi = (data_obj == oggi)
                 classe_css = ' class="oggi"' if is_oggi else ''
-                etichetta_data = f"{data_formattata} (OGGI)" if is_oggi else data_formattata
+                
+                # Nome base del giorno
+                etichetta_data = f"<strong>{data_formattata} (OGGI)</strong>" if is_oggi else data_formattata
                 
                 timbrature_raw = giorno[24] 
                 timbrature_str = "Nessuna"
                 
+                # --- CALCOLO MATEMATICO DELLE 8 ORE ---
                 if timbrature_raw:
                     timb_json = json.loads(timbrature_raw)
+                    t_list = timb_json.get('data', [])
+                    
                     timbrature_lista = []
-                    for t in timb_json.get('data', []):
+                    for t in t_list:
                         verso = "IN" if t[0] == 'E' else "OUT"
                         minuti = t[1] 
                         timbrature_lista.append(f"{verso} {minuti//60:02d}:{minuti%60:02d}")
+                    
                     if timbrature_lista:
                         timbrature_str = " <br> ".join(timbrature_lista)
+                        
+                    # Se è "oggi", proviamo a calcolare l'uscita a 8 ore
+                    if is_oggi:
+                        minuti_totali = 480 # 8 ore
+                        min_pausa = 60      # 1 ora
+                        
+                        if len(t_list) == 1:
+                            # Solo 1 timbratura (entrato stamattina) -> Aggiungo 8 ore + 1 di pausa
+                            in_1 = t_list[0][1]
+                            out_previsto = in_1 + minuti_totali + min_pausa
+                            etichetta_data += f"<span class='previsione'>🏁 Prevista: {out_previsto//60:02d}:{out_previsto%60:02d}</span>"
+                        
+                        elif len(t_list) == 2:
+                            # Ha timbrato IN e OUT al mattino (ora è in pausa)
+                            in_1 = t_list[0][1]
+                            out_1 = t_list[1][1]
+                            lavorati = out_1 - in_1
+                            # Prevediamo rientri dopo 1 ora esatta
+                            out_previsto = out_1 + min_pausa + (minuti_totali - lavorati)
+                            etichetta_data += f"<span class='previsione'>🏁 Prevista: {out_previsto//60:02d}:{out_previsto%60:02d} (con 1h pausa)</span>"
+                            
+                        elif len(t_list) == 3:
+                            # Rientrato dalla pausa pranzo! Calcoliamo l'uscita esatta
+                            in_1 = t_list[0][1]
+                            out_1 = t_list[1][1]
+                            in_2 = t_list[2][1]
+                            lavorati_mattina = out_1 - in_1
+                            da_fare = minuti_totali - lavorati_mattina
+                            out_previsto = in_2 + da_fare
+                            etichetta_data += f"<span class='previsione'>🏁 Fine 8h: {out_previsto//60:02d}:{out_previsto%60:02d}</span>"
+                            
+                        elif len(t_list) >= 4:
+                            # Giornata finita (4 timbrate)
+                            in_1 = t_list[0][1]; out_1 = t_list[1][1]
+                            in_2 = t_list[2][1]; out_2 = t_list[3][1]
+                            if (out_1 - in_1) + (out_2 - in_2) >= 480:
+                                etichetta_data += f"<span class='previsione completato'>✅ 8 ore raggiunte</span>"
                 
-                html += f"<li{classe_css}><span>{etichetta_data}</span><span class='timbrature'>{timbrature_str}</span></li>\n"
+                html += f"<li{classe_css}><div>{etichetta_data}</div><div class='timbrature'>{timbrature_str}</div></li>\n"
     else:
         html += "<li>Errore di connessione a Solari.</li>"
 
@@ -132,7 +176,6 @@ def genera_dashboard(csrf_token):
     
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html)
-    print("Sito generato con successo!")
 
 if esegui_login():
     token = ottieni_csrf_token()
