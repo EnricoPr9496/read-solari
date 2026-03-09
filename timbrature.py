@@ -53,6 +53,7 @@ def ottieni_csrf_token():
 def genera_dashboard(csrf_token):
     tz_italy = ZoneInfo("Europe/Rome")
     oggi = datetime.now(tz_italy).date()
+    
     primo_giorno = datetime(oggi.year, oggi.month, 1).strftime("%Y%m%d000000")
     giorni_nel_mese = calendar.monthrange(oggi.year, oggi.month)[1]
     ultimo_giorno = datetime(oggi.year, oggi.month, giorni_nel_mese).strftime("%Y%m%d000000")
@@ -86,6 +87,7 @@ def genera_dashboard(csrf_token):
             .timbrature {{ color: #2980b9; font-weight: bold; text-align: right; }}
             .previsione {{ font-size: 0.85em; color: #e67e22; font-weight: bold; margin-top: 5px; display: block; }}
             .completato {{ color: #27ae60; }}
+            .errore {{ color: #e74c3c; }}
         </style>
     </head>
     <body>
@@ -108,13 +110,11 @@ def genera_dashboard(csrf_token):
                 is_oggi = (data_obj == oggi)
                 classe_css = ' class="oggi"' if is_oggi else ''
                 
-                # Nome base del giorno
                 etichetta_data = f"<strong>{data_formattata} (OGGI)</strong>" if is_oggi else data_formattata
                 
                 timbrature_raw = giorno[24] 
                 timbrature_str = "Nessuna"
                 
-                # --- CALCOLO MATEMATICO DELLE 8 ORE ---
                 if timbrature_raw:
                     timb_json = json.loads(timbrature_raw)
                     t_list = timb_json.get('data', [])
@@ -128,42 +128,49 @@ def genera_dashboard(csrf_token):
                     if timbrature_lista:
                         timbrature_str = " <br> ".join(timbrature_lista)
                         
-                    # Se è "oggi", proviamo a calcolare l'uscita a 8 ore
                     if is_oggi:
-                        minuti_totali = 480 # 8 ore
-                        min_pausa = 60      # 1 ora
+                        minuti_totali = 480 # 8 ore lavorative
+                        min_pausa = 60      # 1 ora di pausa minima
                         
                         if len(t_list) == 1:
-                            # Solo 1 timbratura (entrato stamattina) -> Aggiungo 8 ore + 1 di pausa
                             in_1 = t_list[0][1]
                             out_previsto = in_1 + minuti_totali + min_pausa
                             etichetta_data += f"<span class='previsione'>🏁 Prevista: {out_previsto//60:02d}:{out_previsto%60:02d}</span>"
                         
                         elif len(t_list) == 2:
-                            # Ha timbrato IN e OUT al mattino (ora è in pausa)
                             in_1 = t_list[0][1]
                             out_1 = t_list[1][1]
-                            lavorati = out_1 - in_1
-                            # Prevediamo rientri dopo 1 ora esatta
-                            out_previsto = out_1 + min_pausa + (minuti_totali - lavorati)
+                            lavorati_mattina = out_1 - in_1
+                            eff_in_2 = out_1 + min_pausa
+                            out_previsto = eff_in_2 + (minuti_totali - lavorati_mattina)
                             etichetta_data += f"<span class='previsione'>🏁 Prevista: {out_previsto//60:02d}:{out_previsto%60:02d} (con 1h pausa)</span>"
                             
                         elif len(t_list) == 3:
-                            # Rientrato dalla pausa pranzo! Calcoliamo l'uscita esatta
                             in_1 = t_list[0][1]
                             out_1 = t_list[1][1]
                             in_2 = t_list[2][1]
                             lavorati_mattina = out_1 - in_1
                             da_fare = minuti_totali - lavorati_mattina
-                            out_previsto = in_2 + da_fare
+                            
+                            # Regola della Pausa Minima: si riprende a contare dal maggiore tra 
+                            # l'ora di timbrata e l'orario in cui scade l'ora di pausa obbligatoria.
+                            eff_in_2 = max(in_2, out_1 + min_pausa)
+                            
+                            out_previsto = eff_in_2 + da_fare
                             etichetta_data += f"<span class='previsione'>🏁 Fine 8h: {out_previsto//60:02d}:{out_previsto%60:02d}</span>"
                             
                         elif len(t_list) >= 4:
-                            # Giornata finita (4 timbrate)
                             in_1 = t_list[0][1]; out_1 = t_list[1][1]
                             in_2 = t_list[2][1]; out_2 = t_list[3][1]
-                            if (out_1 - in_1) + (out_2 - in_2) >= 480:
+                            
+                            eff_in_2 = max(in_2, out_1 + min_pausa)
+                            totale_lavorato = (out_1 - in_1) + (out_2 - eff_in_2)
+                            
+                            if totale_lavorato >= 480:
                                 etichetta_data += f"<span class='previsione completato'>✅ 8 ore raggiunte</span>"
+                            else:
+                                mancano = 480 - totale_lavorato
+                                etichetta_data += f"<span class='previsione errore'>⚠️ Mancano {mancano} min (uscita anticipata)</span>"
                 
                 html += f"<li{classe_css}><div>{etichetta_data}</div><div class='timbrature'>{timbrature_str}</div></li>\n"
     else:
