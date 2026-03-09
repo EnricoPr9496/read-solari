@@ -3,7 +3,7 @@ name: Aggiorna Dashboard
 on:
   schedule:
     # Gira lun-ven alle 08:00, 13:00 e 18:00 (UTC, quindi in Italia alle 09, 14, 19 circa)
-    - cron: '0 8,13,18 * * 1-5'
+    - cron: '0 8,12,13,16 * * 1-5'
   workflow_dispatch: 
 
 permissions:
