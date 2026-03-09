@@ -6,6 +6,7 @@ import time
 import os
 from datetime import datetime, timedelta
 import calendar
+from zoneinfo import ZoneInfo
 
 # --- Dati Presi in Sicurezza ---
 USERNAME = os.environ.get("SOLARI_USER")
@@ -50,7 +51,8 @@ def ottieni_csrf_token():
     return match.group(1) if match else None
 
 def genera_dashboard(csrf_token):
-    oggi = datetime.now().date()
+    tz_italy = ZoneInfo("Europe/Rome")
+    oggi = datetime.now(tz_italy).date()
     primo_giorno = datetime(oggi.year, oggi.month, 1).strftime("%Y%m%d000000")
     giorni_nel_mese = calendar.monthrange(oggi.year, oggi.month)[1]
     ultimo_giorno = datetime(oggi.year, oggi.month, giorni_nel_mese).strftime("%Y%m%d000000")
@@ -64,7 +66,7 @@ def genera_dashboard(csrf_token):
     
     response = session.post(url, headers=headers, data=json.dumps(payload))
     
-    ora_aggiornamento = (datetime.utcnow() + timedelta(hours=1)).strftime("%d/%m/%Y alle %H:%M")
+    ora_aggiornamento = datetime.now(tz_italy).strftime("%d/%m/%Y alle %H:%M")
     
     html = f"""
     <!DOCTYPE html>
