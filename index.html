@@ -17,23 +17,40 @@
             .previsione { font-size: 0.85em; color: #e67e22; font-weight: bold; margin-top: 5px; display: block; }
             .completato { color: #27ae60; }
             .errore { color: #e74c3c; }
+            .azioni { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 8px; }
+            .azioni a, .azioni button { background: #2563eb; color: white; border: 0; border-radius: 7px; padding: 11px 14px; font: inherit; text-decoration: none; cursor: pointer; }
+            .azioni button { background: #e8edf3; color: #233348; }
+            .nota { color: #526071; font-size: 0.85em; line-height: 1.5; }
+            .avviso { background: #fff4d6; color: #704b00; padding: 12px; border-radius: 7px; line-height: 1.5; }
+            [hidden] { display: none !important; }
         </style>
     </head>
-    <body>
+    <body data-updated-at="2026-10-13T22:57:00+02:00">
         <div class="container">
             <h2>⏱ I Miei Orari (Settimana)</h2>
-            <div class="update">Ultimo controllo automatico: 13/10/2026 alle 22:57</div>
+            <div class="update">Ultima lettura riuscita: 13/10/2026 alle 22:57</div>
+            <div id="avviso-dati" class="avviso" role="status" hidden></div>
+            <div class="azioni">
+                <a href="https://github.com/EnricoPr9496/read-solari/actions/workflows/aggiorna_sito.yml" target="_blank" rel="noopener noreferrer">Aggiorna tramite GitHub ↗</a>
+                <button type="button" id="ricarica-pagina">Ricarica pagina</button>
+            </div>
+            <p class="nota">Per leggere nuovi timbri, apri GitHub e premi <strong>Run workflow</strong> sul ramo <strong>main</strong>.
+                Quando l'aggiornamento e la pubblicazione sono terminati, ricarica questa pagina.
+                Serve l'accesso al tuo account GitHub.</p>
+            <p class="nota">Letture programmate: lun–ven alle 10:00, 13:30, 14:30 e 16:00 (Italia).
+                Le partenze automatiche possono subire ritardi.</p>
             <ul>
-    <li><div>12/10/2026</div><div class='timbrature'>IN 08:44 <br> OUT 12:50 <br> IN 13:49 <br> OUT 17:46</div></li>
-<li class="oggi"><div><strong>13/10/2026 (OGGI)</strong><span class='previsione completato'>✅ 8 ore raggiunte</span></div><div class='timbrature'>IN 08:43 <br> OUT 12:51 <br> IN 13:49 <br> OUT 17:46</div></li>
-<li><div>14/10/2026</div><div class='timbrature'>Nessuna</div></li>
-<li><div>15/10/2026</div><div class='timbrature'>Nessuna</div></li>
-<li><div>16/10/2026</div><div class='timbrature'>Nessuna</div></li>
-<li><div>17/10/2026</div><div class='timbrature'>Nessuna</div></li>
-<li><div>18/10/2026</div><div class='timbrature'>Nessuna</div></li>
+    <li data-date='2026-10-12'><div>12/10/2026</div><div class='timbrature'>IN 08:44 <br> OUT 12:50 <br> IN 13:49 <br> OUT 17:46</div></li>
+<li class="oggi" data-date='2026-10-13'><div><strong>13/10/2026 (OGGI)</strong><span class='previsione completato'>✅ 8 ore raggiunte</span></div><div class='timbrature'>IN 08:43 <br> OUT 12:51 <br> IN 13:49 <br> OUT 17:46</div></li>
+<li data-date='2026-10-14'><div>14/10/2026</div><div class='timbrature'>Nessuna</div></li>
+<li data-date='2026-10-15'><div>15/10/2026</div><div class='timbrature'>Nessuna</div></li>
+<li data-date='2026-10-16'><div>16/10/2026</div><div class='timbrature'>Nessuna</div></li>
+<li data-date='2026-10-17'><div>17/10/2026</div><div class='timbrature'>Nessuna</div></li>
+<li data-date='2026-10-18'><div>18/10/2026</div><div class='timbrature'>Nessuna</div></li>
 
             </ul>
         </div>
+        <script src="dashboard.js"></script>
     </body>
     </html>
     

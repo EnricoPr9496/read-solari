@@ -4,14 +4,21 @@ import json
 import re
 import time
 import os
+import sys
 from datetime import datetime, timedelta
-import calendar
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # --- Dati Presi in Sicurezza ---
 USERNAME = os.environ.get("SOLARI_USER")
 PASSWORD = os.environ.get("SOLARI_PASS")
-ID_DIPENDENTE = os.environ.get("SOLARI_ID", "136") 
+ID_DIPENDENTE = os.environ.get("SOLARI_ID")
+TIMEOUT = (10, 30)
+TZ_ITALY = ZoneInfo("Europe/Rome")
+
+
+class ErroreSolari(RuntimeError):
+    pass
 
 BASE_URL = "https://itsaas-10.solari.it/AirPowerStartweb"
 LOGIN_URL = f"{BASE_URL}/Login.aspx?ReturnUrl=%2fAirPowerStartweb%2fdefault.aspx"
@@ -26,7 +33,8 @@ session.headers.update({
 })
 
 def esegui_login():
-    res = session.get(LOGIN_URL)
+    res = session.get(LOGIN_URL, timeout=TIMEOUT)
+    res.raise_for_status()
     soup = BeautifulSoup(res.text, 'html.parser')
     form_data = {}
     for hidden_field in ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION"]:
@@ -42,32 +50,63 @@ def esegui_login():
     form_data["TotpTextBox"] = ""
             
     login_headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    session.post(LOGIN_URL, data=form_data, headers=login_headers, allow_redirects=False)
+    res = session.post(LOGIN_URL, data=form_data, headers=login_headers, allow_redirects=False, timeout=TIMEOUT)
+    res.raise_for_status()
     return ".ASPXAUTH" in session.cookies.get_dict()
 
 def ottieni_csrf_token():
-    res = session.get(DASHBOARD_URL)
+    res = session.get(DASHBOARD_URL, timeout=TIMEOUT)
+    res.raise_for_status()
     match = re.search(r"['\"]CSRFToken['\"]\s*,\s*['\"]([^'\"]+)['\"]", res.text)
     return match.group(1) if match else None
 
-def genera_dashboard(csrf_token):
-    tz_italy = ZoneInfo("Europe/Rome")
-    oggi = datetime.now(tz_italy).date()
-    
-    primo_giorno = datetime(oggi.year, oggi.month, 1).strftime("%Y%m%d000000")
-    giorni_nel_mese = calendar.monthrange(oggi.year, oggi.month)[1]
-    ultimo_giorno = datetime(oggi.year, oggi.month, giorni_nel_mese).strftime("%Y%m%d000000")
-    
+def genera_dashboard(csrf_token, destinazione="index.html"):
+    oggi = datetime.now(TZ_ITALY).date()
     inizio_settimana = oggi - timedelta(days=oggi.weekday())
     fine_settimana = inizio_settimana + timedelta(days=6)
+    primo_giorno = inizio_settimana.strftime("%Y%m%d000000")
+    ultimo_giorno = fine_settimana.strftime("%Y%m%d000000")
     
     url = f"{API_URL}?PageMethod=ConsultaCartellino&iddip={ID_DIPENDENTE}&CSRFToken={csrf_token}"
     headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest"}
     payload = {"_dtdatainizio": primo_giorno, "_dtdatafine": ultimo_giorno, "dipendenti": [], "sologganomali": False, "soloconvalidati": False, "conautstra": False, "_itiporichiesta": 0, "_iidprospetto": 0, "_itipoconsultazione": 0, "ordinamentodip": "C"}
     
-    response = session.post(url, headers=headers, data=json.dumps(payload))
-    
-    ora_aggiornamento = datetime.now(tz_italy).strftime("%d/%m/%Y alle %H:%M")
+    response = session.post(url, headers=headers, data=json.dumps(payload), timeout=TIMEOUT)
+    response.raise_for_status()
+    try:
+        giornate = response.json()['result']['sintesi']['data']
+        if not isinstance(giornate, list) or not giornate:
+            raise ValueError("Risposta senza giornate")
+        # Un formato cambiato non deve sostituire la pagina con dati parziali.
+        date_ricevute = set()
+        for giorno in giornate:
+            data = datetime.strptime(str(giorno[1])[:8], "%Y%m%d").date()
+            date_ricevute.add(data)
+            if giorno[24]:
+                timbri = json.loads(giorno[24])['data']
+                if not isinstance(timbri, list):
+                    raise ValueError("Formato timbrature non valido")
+                for timbro in timbri:
+                    if not isinstance(timbro[0], str) or not timbro[0] or type(timbro[1]) is not int or not 0 <= timbro[1] < 1440:
+                        raise ValueError("Timbratura non valida")
+        if oggi not in date_ricevute:
+            raise ValueError("Manca la giornata corrente")
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        raise ErroreSolari("Risposta di Solari incompleta o non valida; ultima pagina conservata.") from exc
+
+    aggiornato = datetime.now(TZ_ITALY)
+    html = genera_html(giornate, aggiornato)
+    destinazione = Path(destinazione)
+    temporaneo = destinazione.with_suffix('.html.tmp')
+    temporaneo.write_text(html, encoding="utf-8")
+    temporaneo.replace(destinazione)
+
+
+def genera_html(giornate, aggiornato):
+    oggi = aggiornato.astimezone(TZ_ITALY).date()
+    inizio_settimana = oggi - timedelta(days=oggi.weekday())
+    fine_settimana = inizio_settimana + timedelta(days=6)
+    ora_aggiornamento = aggiornato.astimezone(TZ_ITALY).strftime("%d/%m/%Y alle %H:%M")
     
     html = f"""
     <!DOCTYPE html>
@@ -88,19 +127,32 @@ def genera_dashboard(csrf_token):
             .previsione {{ font-size: 0.85em; color: #e67e22; font-weight: bold; margin-top: 5px; display: block; }}
             .completato {{ color: #27ae60; }}
             .errore {{ color: #e74c3c; }}
+            .azioni {{ display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0 8px; }}
+            .azioni a, .azioni button {{ background: #2563eb; color: white; border: 0; border-radius: 7px; padding: 11px 14px; font: inherit; text-decoration: none; cursor: pointer; }}
+            .azioni button {{ background: #e8edf3; color: #233348; }}
+            .nota {{ color: #526071; font-size: 0.85em; line-height: 1.5; }}
+            .avviso {{ background: #fff4d6; color: #704b00; padding: 12px; border-radius: 7px; line-height: 1.5; }}
+            [hidden] {{ display: none !important; }}
         </style>
     </head>
-    <body>
+    <body data-updated-at="{aggiornato.isoformat()}">
         <div class="container">
             <h2>⏱ I Miei Orari (Settimana)</h2>
-            <div class="update">Ultimo controllo automatico: {ora_aggiornamento}</div>
+            <div class="update">Ultima lettura riuscita: {ora_aggiornamento}</div>
+            <div id="avviso-dati" class="avviso" role="status" hidden></div>
+            <div class="azioni">
+                <a href="https://github.com/EnricoPr9496/read-solari/actions/workflows/aggiorna_sito.yml" target="_blank" rel="noopener noreferrer">Aggiorna tramite GitHub ↗</a>
+                <button type="button" id="ricarica-pagina">Ricarica pagina</button>
+            </div>
+            <p class="nota">Per leggere nuovi timbri, apri GitHub e premi <strong>Run workflow</strong> sul ramo <strong>main</strong>.
+                Quando l'aggiornamento e la pubblicazione sono terminati, ricarica questa pagina.
+                Serve l'accesso al tuo account GitHub.</p>
+            <p class="nota">Letture programmate: lun–ven alle 10:00, 13:30, 14:30 e 16:00 (Italia).
+                Le partenze automatiche possono subire ritardi.</p>
             <ul>
     """
 
-    if response.status_code == 200:
-        dati = response.json()
-        giornate = dati['result']['sintesi']['data']
-        
+    if giornate:
         for giorno in giornate:
             data_string = str(giorno[1])
             data_obj = datetime.strptime(data_string[:8], "%Y%m%d").date()
@@ -172,21 +224,39 @@ def genera_dashboard(csrf_token):
                                 mancano = 480 - totale_lavorato
                                 etichetta_data += f"<span class='previsione errore'>⚠️ Mancano {mancano} min (uscita anticipata)</span>"
                 
-                html += f"<li{classe_css}><div>{etichetta_data}</div><div class='timbrature'>{timbrature_str}</div></li>\n"
-    else:
-        html += "<li>Errore di connessione a Solari.</li>"
+                html += f"<li{classe_css} data-date='{data_obj.isoformat()}'><div>{etichetta_data}</div><div class='timbrature'>{timbrature_str}</div></li>\n"
 
     html += """
             </ul>
         </div>
+        <script src="dashboard.js"></script>
     </body>
     </html>
     """
     
-    with open("index.html", "w", encoding="utf-8") as f:
-        f.write(html)
+    return html
 
-if esegui_login():
-    token = ottieni_csrf_token()
-    if token:
+
+def main():
+    try:
+        if not all((USERNAME, PASSWORD, ID_DIPENDENTE)):
+            raise ErroreSolari("Configura SOLARI_USER, SOLARI_PASS e SOLARI_ID nei segreti del repository.")
+        if not esegui_login():
+            raise ErroreSolari("Accesso a Solari non riuscito; ultima pagina conservata.")
+        token = ottieni_csrf_token()
+        if not token:
+            raise ErroreSolari("Sessione Solari non valida: token CSRF assente; ultima pagina conservata.")
         genera_dashboard(token)
+    except ErroreSolari as exc:
+        print(f"Errore: {exc}", file=sys.stderr)
+        return 1
+    except requests.RequestException:
+        # Non stampare URL, token di sessione o corpo della risposta nei log pubblici.
+        print("Errore di rete o HTTP durante la lettura di Solari; ultima pagina conservata.", file=sys.stderr)
+        return 1
+    print("Lettura Solari completata e dashboard aggiornata.")
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
