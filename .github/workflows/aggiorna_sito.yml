@@ -2,26 +2,40 @@ name: Aggiorna Dashboard
 
 on:
   schedule:
-    # Gira lun-ven alle 08:00, 13:00 e 18:00 (UTC, quindi in Italia alle 09, 14, 19 circa)
-    - cron: '0 8,12,13,16 * * 1-5'
-  workflow_dispatch: 
+    # Orari italiani, anche al cambio fra ora solare e ora legale.
+    # GitHub può ritardare o saltare le partenze programmate.
+    - cron: '0 10,16 * * 1-5'
+      timezone: Europe/Rome
+    - cron: '30 13,14 * * 1-5'
+      timezone: Europe/Rome
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: aggiorna-dashboard
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
-          python-version: '3.10'
+          python-version: '3.12'
           
       - name: Installa librerie
-        run: pip install requests beautifulsoup4
+        run: python -m pip install -r requirements.txt
+
+      - name: Verifica gestione errori e orari
+        run: |
+          python -m unittest discover -s tests -v
+          node --test tests/dashboard.test.cjs
         
       - name: Estrai Orari e Crea Sito
         env:
@@ -32,8 +46,12 @@ jobs:
 
       - name: Salva e pubblica su GitHub
         run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add index.html
-          git commit -m "Aggiornamento orari dashboard" || echo "Nessun nuovo dato"
+          if git diff --cached --quiet; then
+            echo "Nessun nuovo dato"
+            exit 0
+          fi
+          git commit -m "Aggiornamento orari dashboard"
           git push
