@@ -30,7 +30,8 @@ di terze parti alla dashboard.
 Si può scegliere **No expiration** alla creazione, se consentito dall'account.
 GitHub può comunque revocare i token non usati per un anno. Cancellare i dati
 del sito rimuove la configurazione; **Rimuovi da questo browser** cancella la
-copia locale, senza revocare il token su GitHub. Su altri dispositivi occorre
+copia locale solo dopo una conferma; **Annulla** mantiene l'accesso.
+La rimozione locale non revoca il token su GitHub. Su altri dispositivi occorre
 una configurazione separata. Per trasferire l'accesso a un altro proprio browser,
 premere **Copia token per un altro browser** dal browser già configurato,
 incollarlo nel campo Token GitHub della stessa dashboard nell'altro browser e

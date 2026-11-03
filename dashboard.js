@@ -236,6 +236,13 @@
     });
 
     rimuovi.addEventListener("click", () => {
+      if (occupato) return;
+      const confermato = window.confirm(
+        "Vuoi davvero rimuovere l'accesso da questo browser?\n\n" +
+        "Il token salvato qui verrà cancellato. Per aggiornare le timbrature dovrai inserirlo di nuovo.\n\n" +
+        "Premi Annulla per mantenere l'accesso."
+      );
+      if (!confermato) return;
       try {
         window.localStorage.removeItem(TOKEN_KEY);
         campo.value = "";
