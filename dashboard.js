@@ -173,6 +173,7 @@
       '<input id="token-github" type="password" autocomplete="off" spellcheck="false" required style="display:block;box-sizing:border-box;width:100%;padding:10px;margin:8px 0">' +
       '<p>Usa un token limitato a read-solari, con Actions in lettura e scrittura. Viene salvato solo in questo browser e inviato esclusivamente a GitHub. La password Solari resta nei segreti GitHub.</p>' +
       '<div class="azioni"><button type="submit">Salva su questo browser</button>' +
+      '<button type="button" id="copia-accesso">Copia token per un altro browser</button>' +
       '<button type="button" id="rimuovi-accesso">Rimuovi da questo browser</button></div></form>' +
       '<p><a href="https://github.com/settings/personal-access-tokens/new?name=Read+Solari+browser&target_name=EnricoPr9496&expires_in=none&actions=write" target="_blank" rel="noopener noreferrer">Crea token su GitHub</a> · ' +
       '<a href="https://github.com/EnricoPr9496/read-solari/actions/workflows/aggiorna_sito.yml" target="_blank" rel="noopener noreferrer">Controlla esecuzioni su GitHub</a></p>';
@@ -182,6 +183,7 @@
     const statoAccesso = document.getElementById("stato-accesso");
     const form = document.getElementById("configura-accesso");
     const rimuovi = document.getElementById("rimuovi-accesso");
+    const copia = document.getElementById("copia-accesso");
     let occupato = false;
 
     function leggiToken() {
@@ -193,6 +195,7 @@
         const presente = Boolean(leggiToken());
         statoAccesso.textContent = presente ? "Questo browser è configurato. Puoi aggiornare con un clic." : "Configura una volta questo browser per aggiornare direttamente dal sito.";
         rimuovi.disabled = !presente;
+        copia.disabled = !presente;
       } catch (error) { statoAccesso.textContent = error.message; }
     }
     function blocca(valore) {
@@ -218,6 +221,18 @@
       } catch (error) {
         stato.textContent = error instanceof ErroreAggiornamento ? error.message : "Impossibile salvare l'accesso. Controlla le impostazioni dei dati del sito.";
       } finally { campo.value = ""; blocca(false); }
+    });
+
+    copia.addEventListener("click", async () => {
+      if (occupato) return;
+      try {
+        const token = leggiToken();
+        if (!token) return;
+        await navigator.clipboard.writeText(token);
+        stato.textContent = "Token copiato. Nell'altro browser apri questo sito, incollalo in Accesso da questo browser e premi Salva. Non condividerlo in chat o messaggi.";
+      } catch {
+        stato.textContent = "Il browser non consente di copiare il token negli appunti.";
+      }
     });
 
     rimuovi.addEventListener("click", () => {

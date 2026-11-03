@@ -31,7 +31,12 @@ Si può scegliere **No expiration** alla creazione, se consentito dall'account.
 GitHub può comunque revocare i token non usati per un anno. Cancellare i dati
 del sito rimuove la configurazione; **Rimuovi da questo browser** cancella la
 copia locale, senza revocare il token su GitHub. Su altri dispositivi occorre
-una configurazione separata.
+una configurazione separata. Per trasferire l'accesso a un altro proprio browser,
+premere **Copia token per un altro browser** dal browser già configurato,
+incollarlo nel campo Token GitHub della stessa dashboard nell'altro browser e
+salvarlo. Questa operazione copia la credenziale negli appunti solo su richiesta;
+non condividerla tramite messaggi e sostituire il contenuto degli appunti dopo
+l'uso. Revocare il token su GitHub disabilita tutte le copie.
 
 Il pulsante invia una sola richiesta di avvio, impedisce doppi clic e controlla
 lo stato per un massimo di circa 15 minuti (oltre ai tempi di rete). Un errore
