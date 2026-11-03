@@ -13,15 +13,33 @@ le partenze: questi sono orari richiesti, non una garanzia di puntualità.
 
 Per aggiornare manualmente:
 
-1. Premere **Aggiorna tramite GitHub** nella dashboard.
-2. Accedere a GitHub con un account che può scrivere nel repository.
-3. Premere **Run workflow**, selezionare `main` e confermare **Run workflow**.
-4. Attendere il completamento di **Aggiorna Dashboard** e **pages-build-deployment**.
-5. Tornare alla dashboard e premere **Ricarica pagina**.
+1. Una volta per browser, aprire **Accesso da questo browser** e salvare un
+   token GitHub fine-grained, limitato al repository `read-solari`, con il solo
+   permesso **Actions: Read and write** (Metadata in lettura è automatico).
+2. Premere **Aggiorna timbrature**. Non occorre aprire GitHub.
+3. Attendere la lettura e la pubblicazione: la pagina si ricarica automaticamente
+   quando il lavoro è riuscito e l'HTML pubblicato contiene dati più recenti.
 
-Il collegamento apre l'avvio manuale su GitHub; non avvia il lavoro da solo.
-Ricaricare la pagina recupera l'HTML pubblicato e non interroga Solari.
-Non sono necessari token GitHub nel browser della dashboard.
+Il token resta in `localStorage` di questo browser e viene inviato solo a
+`api.github.com` nell'header Authorization. Non è inserito nei file, negli URL
+o nelle richieste alla pagina pubblica. La password Solari resta nei segreti
+GitHub. Usare un browser personale: chi accede al suo profilo, e gli script
+della stessa origine, possono accedere al token salvato. Non aggiungere script
+di terze parti alla dashboard.
+
+Si può scegliere **No expiration** alla creazione, se consentito dall'account.
+GitHub può comunque revocare i token non usati per un anno. Cancellare i dati
+del sito rimuove la configurazione; **Rimuovi da questo browser** cancella la
+copia locale, senza revocare il token su GitHub. Su altri dispositivi occorre
+una configurazione separata.
+
+Il pulsante invia una sola richiesta di avvio, impedisce doppi clic e controlla
+lo stato per un massimo di circa 15 minuti (oltre ai tempi di rete). Un errore
+o un'attesa lunga non causa altri avvii automatici. La chiave non è necessaria
+per leggere la dashboard o per gli aggiornamenti già programmati.
+
+**Ricarica pagina** recupera l'HTML pubblicato e non interroga Solari. Senza
+JavaScript resta disponibile il collegamento di avvio manuale su GitHub.
 
 La data mostrata indica l'ultima lettura riuscita. Se i dati risalgono a un altro
 giorno, oppure una lettura programmata manca da almeno 30 minuti, compare un
@@ -83,10 +101,10 @@ successiva pubblicazione Pages.
 
 Un pianificatore esterno che richiama l'avvio manuale di GitHub può sostituire il
 cron di GitHub, ma lascia la dipendenza dalla coda Actions e dalla pubblicazione
-Pages. Per aggiornare i timbri direttamente con un pulsante nella dashboard,
-serve invece un servizio applicativo autenticato che esegua la lettura e restituisca
-i dati, con le credenziali conservate sul server. Questa migrazione richiede
-la scelta e la configurazione di un servizio di hosting e non è inclusa qui.
+Pages. Il pulsante attuale avvia Actions dal browser e attende Pages. Per leggere
+Solari senza attendere Actions e la pubblicazione, serve invece un servizio
+applicativo autenticato che esegua la lettura e restituisca i dati, con le
+credenziali conservate sul server. Questa migrazione non è inclusa qui.
 
 Il repository e la pagina attuali sono pubblici: anche l'HTML con gli orari è
 pubblico. Una futura migrazione può proteggere la dashboard con autenticazione;
